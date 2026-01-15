@@ -82,6 +82,7 @@ var (
 	criticalReposFlag  = flag.String("critical-repos", "", "critical repositories for more stringent checking, comma separated")
 	orgFlag            = flag.String("org", "", "Github Organization to query")
 	botNameFlag        = flag.String("bot-name", "-bot,[bot],deploy,guardian", "Well-known bot name users in the org, comma separated. Defaults to \"-bot,[bot],deploy,guardian\".")
+	runOnceFlag        = flag.Bool("run-once", false, "Run once and exit (for cron usage), instead of running as a daemon")
 )
 
 func auditString(a *github.AuditEntry) string {
@@ -286,44 +287,67 @@ func main() {
 	tc := oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: ghToken}))
 	c := github.NewClient(tc)
 
-	s := Settings{
-		Org:                      *orgFlag,
-		Since:                    time.Now().Add(-1 * *intervalFlag),
-		BotNames:                 strings.Split(*botNameFlag, ","),
-		GlobalIgnoreActions:      universalIgnore,
-		NonCriticalIgnoreActions: nonCriticalIgnore,
-		MaxClonedRepos:           *maxReposClonedFlag,
-		MaxClonesSince:           time.Now().Add(-1 * *cloneIntervalFlag),
-		CriticalRepos:            strings.Split(*criticalReposFlag, ","),
-	}
+	// Initial startup: look back by the configured interval
+	lastCheck := time.Now().Add(-1 * *intervalFlag)
+	log.Printf("Starting github-audit-alerter for org %s, checking events since %s", *orgFlag, lastCheck)
 
-	wes, err := webEvents(ctx, c, s)
-	if err != nil {
-		log.Panicf("web events: %v", err)
-	}
-	postFailures := 0
+	// Clone window is always sliding relative to Now, but we only alert on NEW excessive clones
+	// We'll handle that logic inside the loop
+
 	webhook := os.Getenv("GH_AUDIT_SLACK_WEBHOOK")
 
-	for _, e := range wes {
-		if err := notify(webhook, auditMsg(e)); err != nil {
-			postFailures++
-			log.Printf("notify failed: %v", err)
-		}
+	// Main Loop
+	ticker := time.NewTicker(1 * time.Minute)
+	if *runOnceFlag {
+		ticker.Stop() // Don't tick
 	}
 
-	ces, err := cloneEvents(ctx, c, s)
-	if err != nil {
-		log.Panicf("clone events: %v", err)
-	}
-	for _, e := range ces {
-		if err := notify(webhook, fmt.Sprintf("excessive clone[>=%d]: %s", s.MaxClonedRepos, auditMsg(e))); err != nil {
-			postFailures++
-			log.Printf("notify failed: %v", err)
-		}
-	}
+	for {
+		// Capture the start time of this check to be the 'since' of the next check
+		checkTime := time.Now()
 
-	if postFailures > 0 {
-		log.Panicf("%d post failures: %v", postFailures, err)
+		s := Settings{
+			Org:                      *orgFlag,
+			Since:                    lastCheck,
+			BotNames:                 strings.Split(*botNameFlag, ","),
+			GlobalIgnoreActions:      universalIgnore,
+			NonCriticalIgnoreActions: nonCriticalIgnore,
+			MaxClonedRepos:           *maxReposClonedFlag,
+			MaxClonesSince:           time.Now().Add(-1 * *cloneIntervalFlag),
+			CriticalRepos:            strings.Split(*criticalReposFlag, ","),
+		}
+
+		wes, err := webEvents(ctx, c, s)
+		if err != nil {
+			log.Printf("error fetching web events: %v", err)
+		} else {
+			for _, e := range wes {
+				if err := notify(webhook, auditMsg(e)); err != nil {
+					log.Printf("notify failed: %v", err)
+				}
+			}
+		}
+
+		ces, err := cloneEvents(ctx, c, s)
+		if err != nil {
+			log.Printf("error fetching clone events: %v", err)
+		} else {
+			for _, e := range ces {
+				if err := notify(webhook, fmt.Sprintf("excessive clone[>=%d]: %s", s.MaxClonedRepos, auditMsg(e))); err != nil {
+					log.Printf("notify failed: %v", err)
+				}
+			}
+		}
+
+		if *runOnceFlag {
+			break
+		}
+
+		// Update lastCheck for the next iteration
+		lastCheck = checkTime
+
+		// Wait for next tick
+		<-ticker.C
 	}
 }
 
