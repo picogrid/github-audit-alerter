@@ -104,10 +104,10 @@ func auditLog(ctx context.Context, c *github.Client, kind string, since time.Tim
 	}
 
 	for _, l := range logs {
-		as = append(as, l)
 		if l.GetTimestamp().Before(since) {
 			return as, nil
 		}
+		as = append(as, l)
 	}
 
 	for resp.After != "" {
@@ -124,10 +124,10 @@ func auditLog(ctx context.Context, c *github.Client, kind string, since time.Tim
 		}
 
 		for _, l := range logs {
-			as = append(as, l)
 			if l.GetTimestamp().Before(since) {
 				return as, nil
 			}
+			as = append(as, l)
 		}
 
 		if len(as)%1000 == 0 {
