@@ -26,7 +26,25 @@ export GITHUB_TOKEN=$(cat <your-github-token-file>)
 github-audit-alerter --org chainguard-dev --max-repos-cloned-per-user=3
 ```
 
-To send Slack events, set the GH_AUDIT_SLACK_WEBHOOK environment variable.
+## Installation (Linux VPS)
+
+1. **Build the binary** for Linux:
+   ```bash
+   GOOS=linux GOARCH=amd64 go build -o github-audit-alerter main.go
+   ```
+
+2. **Upload** the binary (`github-audit-alerter`) and the `install.sh` script to your server.
+
+3. **Run the installer**:
+   ```bash
+   sudo ./install.sh
+   ```
+   The script will prompt you for:
+   - Your GitHub Organization name
+   - Your GitHub Personal Access Token (PAT)
+   - Your Slack Webhook URL (optional)
+
+   It will automatically set up a systemd service to keep the alerter running.
 
 ## Creating a Slack webhook URL
 
