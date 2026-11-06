@@ -154,13 +154,13 @@ type Settings struct {
 func webEvents(ctx context.Context, c *github.Client, s Settings) ([]*github.AuditEntry, error) {
 	log.Printf("looking for web events impacting %s since %s", s.Org, s.Since)
 
-	ig := []string{}
+	ig := make([]string, 0, len(s.GlobalIgnoreActions))
 	for _, i := range s.GlobalIgnoreActions {
 		ig = append(ig, fmt.Sprintf("^%s$", i))
 	}
 	globalIgnoreRe := regexp.MustCompile(strings.Join(ig, "|"))
 
-	ig = []string{}
+	ig = make([]string, 0, len(s.NonCriticalIgnoreActions))
 	for _, i := range s.NonCriticalIgnoreActions {
 		ig = append(ig, fmt.Sprintf("^%s$", i))
 	}
