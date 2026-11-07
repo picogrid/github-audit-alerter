@@ -1,29 +1,32 @@
 ---
+version: "2"
+run:
+  issues-exit-code: 1
+  timeout: 10m
 linters:
+  # errcheck, govet, ineffassign, staticcheck (which now includes stylecheck) and unused are on by default.
   enable:
     - asciicheck
-    - unused
-    - errcheck
     - errorlint
-    - gofmt
-    - goimports
-    - gosec
     - gocritic
+    - gosec
     - importas
+    - misspell
     - prealloc
     - revive
-    - misspell
-    - stylecheck
     - tparallel
     - unconvert
     - unparam
     - whitespace
-linters-settings: {}
-output:
-  uniq-by-line: false
+  settings:
+    staticcheck:
+      # Match the v1 staticcheck and stylecheck defaults; v2 adds the QF quick-fix suggestions.
+      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF*"]
+formatters:
+  enable:
+    - gofmt
+    - goimports
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-run:
-  issues-exit-code: 1
-  timeout: 10m
+  uniq-by-line: false

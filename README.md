@@ -9,7 +9,7 @@ This is chiefly to detect whether or not someone's Github credentials have been 
 
 ## Requirements
 
-- go v1.20.0 or newer
+- go v1.25.0 or newer
 - Slack webhook token
 - Github auth token
 
